@@ -1,7 +1,8 @@
 package sparktypesafety
 
 import org.apache.spark.SparkException
-import org.apache.spark.sql.{Dataset, Encoder, Encoders, SparkSession}
+import org.apache.spark.sql.functions.col
+import org.apache.spark.sql.{Dataset, Encoder, Encoders, Row, SparkSession}
 import org.scalatest.BeforeAndAfter
 import org.scalatest.matchers.should.Matchers
 import sparktypesafety.testcommon.SparkTestBase
@@ -36,24 +37,24 @@ class SparkDatasetTest extends SparkTestBase with BeforeAndAfter with Matchers {
 
   behavior of "Spark Dataset"
 
-  it should "successfully read data if schemas match" in {
+  it should "successfully process data if schemas match" in {
     // Given
     writeOriginalData()
 
     // When
     val ds = readDataset(Encoders.product[OriginalRow])
+    val actual = ds.collectAsList().asScala.toList
 
     // Then
-    val actual = ds.collectAsList().asScala.toList
     actual should contain theSameElementsAs originalRows
   }
 
-  it should "successfully read data if the schema is a subset of what is written" in {
+  it should "successfully process data if the schema is a subset of what was written" in {
     // Given
     writeOriginalData()
-
     // When
     val ds = readDataset(Encoders.product[SubsetRow])
+    val actual = ds.collectAsList().asScala.toList
 
     // Then
     val expected = Seq(
@@ -62,11 +63,28 @@ class SparkDatasetTest extends SparkTestBase with BeforeAndAfter with Matchers {
       SubsetRow("row-3-str")
     )
 
-    val actual = ds.collectAsList().asScala.toList
     actual should contain theSameElementsAs expected
   }
 
-  it should "throw if schemas do not match" in {
+  it should "successfully process data if mismatched columns aren't output" in {
+    // Given
+    writeOriginalData()
+
+    // When
+    val ds = readDataset(Encoders.product[ConflictingRow])
+    val actual = ds.drop(col("intValue")).collectAsList().asScala.toList
+
+    // Then
+    val expected = List(
+      Row("row-1-str"),
+      Row("row-2-str"),
+      Row("row-3-str")
+    )
+
+    actual should contain theSameElementsAs expected
+  }
+
+  it should "throw if mismatched columns are output" in {
     // Given
     writeOriginalData()
 
